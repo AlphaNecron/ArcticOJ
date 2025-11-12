@@ -1,0 +1,14 @@
+[package]
+name = "igloo"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "igloo-cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "igloo-tui"
+path = "src/bin/tui.rs"
+
+[dependencies]
