@@ -1,0 +1,101 @@
+name: CI
+on:
+  push:
+    branches:
+      - bleeding-edge
+  pull_request:
+
+env:
+  RUST_TOOLCHAIN: stable
+  TOOLCHAIN_PROFILE: minimal
+
+jobs:
+  rustfmt:
+    name: style check
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+      - name: cargo fmt check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: lint
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: check
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: setup cache
+        uses: Swatinem/rust-cache@v2
+      - name: run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery -W rust-2018-idioms
+
+  test:
+    name: run tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    services:
+      dragonfly:
+        image: docker.dragonflydb.io/dragonflydb/dragonfly
+        options: >-
+          --ulimit memlock=-1:-1
+          --health-cmd "/usr/local/bin/healthcheck.sh"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - "6379:6379"
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_DB: arctic
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - "5432:5432"
+        options: --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: check
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: setup cache
+        uses: Swatinem/rust-cache@v2
+      - name: run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --all
+        env:
+          # unsupported for now but imma just put here for future-proof
+          ARCTIC_CACHE_URL: redis://localhost:${{job.services.redis.ports[6379]}}
+          ARCTIC_DATABASE_URL: postgres://postgres:postgres@localhost:5432/arctic
