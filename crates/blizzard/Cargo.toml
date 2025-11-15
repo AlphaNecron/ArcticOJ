@@ -1,0 +1,30 @@
+[package]
+name = "blizzard"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "arctic"
+path = "src/main.rs"
+
+[dependencies]
+poem = { version = "3.1.12", features = ["multipart", "sse", "tower", "requestid"] }
+poem-grants = { version = "3.0.2", features = ["protect-endpoints-proc-macro"] }
+poem-openapi = { version = "5.1.16", features = ["chrono", "email"] }
+sea-orm = { version = "2.0.0-rc", features = ["macros", "sqlx-postgres", "runtime-tokio", "debug-print", "schema-sync", "entity-registry"] }
+argon2 = { version = "0.6.0-rc", default-features = false, features = ["parallel", "getrandom", "password-hash", "std"] }
+serde.workspace = true
+async-trait.workspace = true
+include_dir.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+tower = { version = "0.5.2", features = ["tokio-stream", "tokio", "tracing"] }
+tower-http = { version = "0.6.6", features = ["trace"] }
+config.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-bunyan-formatter.workspace = true
+poem-extensions = "0.9.0"
+migration.workspace = true
+thiserror = "2.0.17"
+serde_json = "1.0.145"

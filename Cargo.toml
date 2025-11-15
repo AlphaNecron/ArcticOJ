@@ -1,15 +1,6 @@
-[package]
-name = "ArcticOJ"
-version = "0.1.0"
-edition = "2024"
-
-[[bin]]
-name = "arctic-cli"
-path = "src/main.rs"
-
 [workspace]
 resolver = "3"
-members = ["service/igloo"]
+members = ["crates/igloo", "crates/migration", "crates/blizzard", "crates/macros"]
 
 [workspace.dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
@@ -18,21 +9,7 @@ chrono = "0.4.42"
 include_dir = "0.7.4"
 tokio = { version = "1.48.0", features = ["rt", "rt-multi-thread", "macros"] }
 config = { version = "0.15.18", features = ["corn"] }
-tracing = { version = "0.1.41" }
+tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["chrono", "json"] }
-
-[dependencies]
-axum = { version = "0.8", features = ["http2", "multipart"] }
-axum-routes = "0.2.3"
-sea-orm = { version = "2.0.0-rc", features = ["macros", "sqlx-postgres", "runtime-tokio-rustls"] }
-argon2 = { version = "0.6.0-rc", default-features = false, features = ["parallel", "getrandom", "password-hash", "alloc"] }
-serde = { workspace = true }
-async-trait = { workspace = true }
-chrono = { workspace = true }
-include_dir = { workspace = true }
-tokio = { workspace = true }
-tower = { version = "0.5.2" }
-tower-http = { version = "0.6.6", features = ["trace"] }
-config = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-bunyan-formatter = "0.3.10"
+migration = { path = "crates/migration" }
