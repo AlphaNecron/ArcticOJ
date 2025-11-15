@@ -24,11 +24,8 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt
-      - name: cargo fmt check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - name: fmt check
+        uses: actions-rust-lang/rustfmt@v1
 
   clippy:
     name: lint
