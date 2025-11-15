@@ -23,7 +23,7 @@ async fn api_key_checker(req: &Request, key: ApiKey) -> Option<user::Model> {
 // region Login
 #[derive(Object)]
 struct Credentials {
-    /// Either email or handle
+    /// Either email or handle.
     handle: String,
     password: Password,
 }
@@ -32,10 +32,10 @@ struct Credentials {
 enum LoginResp {
     #[oai(status = 200)]
     Ok(PlainText<String>),
-    /// Invalid credentials
+    /// Invalid credentials.
     #[oai(status = 400)]
     Bad,
-    /// Internal error (e.g., DBErr)
+    /// Internal error (e.g., DBErr).
     #[oai(status = 500)]
     InternalError,
 }
@@ -46,6 +46,7 @@ enum LoginResp {
 #[oai(rename_all = "camelCase")]
 struct RegisterReq {
     display_name: Option<String>,
+    #[oai(validator(min_length = 6, max_length = 16, pattern = r"^[a-zA-Z0-9_]+$"))]
     handle: String,
     email: Email,
     password: Password,
@@ -53,25 +54,24 @@ struct RegisterReq {
 
 #[derive(ApiResponse)]
 enum RegisterResp {
-    /// Returns ID of inserted user
+    /// Returns ID of inserted user.
     #[oai(status = 200)]
     Ok(Json<i32>),
 
-    /// Handle or email already in use
-    ///
-    /// Returns SQL error message
+    /// Handle or email already in use.
+    /// Returns SQL error message.
     #[oai(status = 409)]
     Conflict(PlainText<String>),
 
-    /// Internal error (e.g., DBErr)
+    /// Internal error (e.g., DBErr).
     #[oai(status = 500)]
     InternalError,
 }
 // endregion
 
-#[OpenApi(prefix_path = "/auth")]
+#[OpenApi(prefix_path = "/auth", tag = "Tags::Auth")]
 impl Endpoints {
-    #[oai(path = "/login", method = "post")]
+    #[oai(path = "/login", method = "post", operation_id = "login")]
     async fn login(&self, creds: Json<Credentials>, state: Data<&AppState>) -> LoginResp {
         match user::Entity::find_by_email_or_handle(&creds.handle)
             .one(&state.conn)
@@ -94,7 +94,7 @@ impl Endpoints {
         }
     }
 
-    #[oai(path = "/register", method = "post")]
+    #[oai(path = "/register", method = "post", operation_id = "register")]
     async fn register(&self, req: Json<RegisterReq>, state: Data<&AppState>) -> RegisterResp {
         let u = user::ActiveModel {
             display_name: Set(req.display_name.clone()),
