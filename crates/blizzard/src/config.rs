@@ -1,30 +1,53 @@
-use config::Config as _Config;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
-#[derive(Debug, Deserialize)]
+const CONF_FILE: &str = "config.kdl";
+
+#[derive(Debug, Deserialize, Serialize, Default, config::Scalar)]
+#[serde(rename_all = "kebab-case")]
 pub enum Protocol {
-    #[serde(rename = "unix")]
+    #[cfg(target_family = "unix")]
     Unix,
-    #[serde(rename = "tcp")]
+    #[default]
     Tcp,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, config::Object)]
 pub struct Address {
+    #[knus(argument)]
     pub protocol: Protocol,
-    pub addr: String,
+    #[knus(argument)]
+    pub path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, config::Object)]
 pub struct Config {
+    #[knus(child, unwrap(argument))]
     pub database_url: String,
+    #[knus(child)]
     pub listener: Address,
 }
 
-pub(super) fn load() -> Config {
-    let b = _Config::builder()
-        .add_source(config::File::with_name("arctic.corn"))
-        .add_source(config::Environment::with_prefix("ARCTIC"));
+impl Default for Address {
+    fn default() -> Self {
+        Self {
+            protocol: Protocol::Tcp,
+            path: "127.0.0.1:2999".to_owned(),
+        }
+    }
+}
 
-    b.build().unwrap().try_deserialize::<Config>().unwrap()
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            database_url: "sqlite::memory:".to_owned(),
+            listener: Address::default(),
+        }
+    }
+}
+
+impl Config {
+    pub fn load() -> miette::Result<Self> {
+        config::load(CONF_FILE, "BLIZZARD_", Some(Self::default()))
+    }
 }

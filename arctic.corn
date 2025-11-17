@@ -1,7 +1,0 @@
-{
-database_url = "postgres://postgres:postgres@192.168.31.212:5432/arctic_rs?sslmode=disable"
-listener = {
-    protocol = "tcp"
-    addr = "0.0.0.0:2999"
-}
-}

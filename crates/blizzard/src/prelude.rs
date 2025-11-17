@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
 
-pub(crate) use tracing::{error, info};
+pub(crate) use tracing::{debug, error, info, trace, warn};
 
 // pub use crate::testing::prelude::*;

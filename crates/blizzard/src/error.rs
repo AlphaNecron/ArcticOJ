@@ -1,5 +1,5 @@
 use poem::error::ResponseError;
-use poem::{http::StatusCode, Body};
+use poem::{Body, http::StatusCode};
 use poem_openapi::payload::{Json, Payload};
 use poem_openapi::registry::{MetaMediaType, MetaResponse, MetaResponses, Registry};
 use poem_openapi::{ApiResponse, Object};
@@ -61,7 +61,7 @@ impl ApiResponse for Error {
             responses: vec![MetaResponse {
                 description: "<error description>",
                 status: None,
-                status_range: Some("4XX/5XX".to_string()),
+                status_range: Some("4XX/5XX".to_owned()),
                 content: vec![MetaMediaType {
                     content_type: Json::<Error>::CONTENT_TYPE,
                     schema: Json::<Error>::schema_ref(),

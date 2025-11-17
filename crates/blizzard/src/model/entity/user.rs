@@ -11,6 +11,10 @@ pub struct Model {
 
     #[sea_orm(unique)]
     #[oai(read_only)]
+    pub uid: String,
+
+    #[sea_orm(unique)]
+    #[oai(read_only)]
     pub handle: String,
 
     #[sea_orm(nullable)]

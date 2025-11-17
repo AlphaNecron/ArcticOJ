@@ -1,2 +1,2 @@
-pub(crate) mod updatable;
 mod prelude;
+pub(crate) mod updatable;

@@ -1,4 +1,5 @@
 use super::prelude::*;
+use poem_grants::protect;
 
 pub(super) struct CollectionEndpoints;
 pub(super) struct ItemEndpoints;
@@ -12,8 +13,10 @@ impl CollectionEndpoints {
     }
 }
 
+#[open_api]
 #[OpenApi(prefix_path = "/user/:id", tag = "Tags::User")]
 impl ItemEndpoints {
+    #[protect("admin")]
     #[oai(path = "/", method = "delete", operation_id = "deleteUser")]
     async fn delete_user(&self, id: Path<String>) -> PlainText<String> {
         PlainText(id.0)

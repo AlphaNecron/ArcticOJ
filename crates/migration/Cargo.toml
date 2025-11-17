@@ -10,11 +10,19 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+config.workspace = true
+miette.workspace = true
+serde.workspace = true
+knus.workspace = true
+
+[dependencies.tokio]
+version = "1.48.0"
+features = ["macros", "rt", "rt-multi-thread"]
 
 [dependencies.sea-orm-migration]
 version = "2.0.0-rc"
 features = [
     "sqlx-postgres",
+    "sqlx-sqlite",
     "runtime-tokio"
 ]

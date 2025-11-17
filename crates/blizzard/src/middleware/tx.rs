@@ -13,7 +13,7 @@
 //             )
 //         })?;
 //     let tx = db.begin().await.map_err(|e| {
-//         error!(err = e.to_string(), "err beginning tx");
+//         error!(err = e.to_owned(), "err beginning tx");
 //         Error::from_string(
 //             "err beginning tx",
 //             poem::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -26,7 +26,7 @@
 //             let res = res.into_response();
 //             if (res.is_success()) {
 //                 actual_tx.lock().unwrap().commit().await.map_err(|e| {
-//                     error!(err = e.to_string(), "err committing tx");
+//                     error!(err = e.to_owned(), "err committing tx");
 //                     Error::from_string(
 //                         "err committing tx",
 //                         poem::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -39,7 +39,7 @@
 //                     .rollback()
 //                     .await
 //                     .map_err(|e| {
-//                         error!(err = e.to_string(), "err rolling back tx");
+//                         error!(err = e.to_owned(), "err rolling back tx");
 //                         Error::from_string(
 //                             "err rolling back tx",
 //                             poem::http::StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,40 +1,39 @@
 use crate::prelude::*;
 use crate::state::AppState;
+use miette::IntoDiagnostic;
 use poem::listener::{Listener, TcpListener, UnixListener};
 use poem::middleware::{AddData, RequestId, Tracing};
 use poem::{EndpointExt, Route, Server};
+use poem_grants::GrantsMiddleware;
 use poem_openapi::OpenApiService;
 use tracing::Level;
 
-mod config;
+pub mod config;
 mod db;
 mod error;
 mod extractor;
 mod hash;
-mod log;
 mod middleware;
 mod model;
 mod payload;
 mod prelude;
+mod rbac;
 mod route;
 mod scalar;
 mod state;
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
-    // tracing::subscriber::set_global_default(Registry::default().with(JsonStorageLayer).with(
-    //     BunyanFormattingLayer::new("blizzard".into(), std::io::stdout),
-    // )).unwrap();
+async fn main() -> miette::Result<()> {
     tracing_subscriber::fmt()
         .compact()
         .with_max_level(Level::DEBUG)
         .init();
 
-    let conf = config::load();
+    let conf = config::Config::load()?;
     info!("config loaded");
 
     let db = db::from(&conf.database_url).await.unwrap_or_else(|e| {
-        error!(err = e.to_string(), "err connecting to db");
+        error!(err = %e, "err connecting to db");
         std::process::exit(1);
     });
 
@@ -50,24 +49,26 @@ async fn main() -> std::io::Result<()> {
 
     let spec = app.spec_endpoint();
 
-    let mut sugared_app = app
-        .with(RequestId::default())
-        .with(AddData::new(AppState { conn: db }))
-        .boxed();
-    if cfg!(debug_assertions) {
-        sugared_app = sugared_app.with(Tracing).boxed();
-    }
-
     Server::new(match conf.listener.protocol {
         #[cfg(target_family = "unix")]
-        config::Protocol::Unix => UnixListener::bind(conf.listener.addr).boxed(),
-        _ => TcpListener::bind(conf.listener.addr).boxed(),
+        config::Protocol::Unix => UnixListener::bind(conf.listener.path.to_owned()).boxed(),
+
+        _ => TcpListener::bind(conf.listener.path.to_owned()).boxed(),
     })
     .run(
         Route::new()
-            .nest("/", sugared_app)
+            .nest(
+                "/",
+                app.with(RequestId::default())
+                    .with(AddData::new(AppState { conn: db }))
+                    .with_if(cfg!(debug_assertions), Tracing)
+                    .with(Body)
+                    .with(GrantsMiddleware::with_extractor(extractor::grants::extract)),
+            )
             .nest("/openapi.json", spec)
             .nest("/docs", scalar),
     )
     .await
+    .into_diagnostic()?;
+    Ok(())
 }

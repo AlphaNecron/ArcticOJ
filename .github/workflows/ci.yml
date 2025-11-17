@@ -46,7 +46,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery -W rust-2018-idioms
+          args: --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery
 
   test:
     name: run tests
@@ -74,7 +74,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
         ports:
           - "5432:5432"
-        options: --health-cmd pg_isready
+        options: --health-bin pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

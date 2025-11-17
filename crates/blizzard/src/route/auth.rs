@@ -1,7 +1,9 @@
 use super::prelude::*;
-use crate::hash;
-use poem_openapi::auth::{ApiKey};
+use poem::session::Session;
+use poem::web::cookie::{Cookie, CookieJar};
 use poem_openapi::SecurityScheme;
+use poem_openapi::auth::ApiKey;
+use sea_orm::DatabaseConnection;
 
 pub(super) struct Endpoints;
 
@@ -16,7 +18,10 @@ pub(super) struct Endpoints;
 struct ApiKeyAuth(user::Model);
 
 async fn api_key_checker(req: &Request, key: ApiKey) -> Option<user::Model> {
-    None
+    user::Entity::find_by_api_key(key.key)
+        .one(req.data::<DatabaseConnection>().unwrap())
+        .await
+        .unwrap_or(None)
 }
 // endregion
 
@@ -31,7 +36,7 @@ struct Credentials {
 #[derive(ApiResponse)]
 enum LoginResp {
     #[oai(status = 200)]
-    Ok(PlainText<String>),
+    Ok,
     /// Invalid credentials.
     #[oai(status = 400)]
     Bad,
@@ -46,7 +51,7 @@ enum LoginResp {
 #[oai(rename_all = "camelCase")]
 struct RegisterReq {
     display_name: Option<String>,
-    #[oai(validator(min_length = 6, max_length = 16, pattern = r"^[a-zA-Z0-9_]+$"))]
+    #[oai(validator(min_length = 6, max_length = 24, pattern = r"^[a-zA-Z0-9_]+$"))]
     handle: String,
     email: Email,
     password: Password,
@@ -55,7 +60,7 @@ struct RegisterReq {
 #[derive(ApiResponse)]
 enum RegisterResp {
     /// Returns ID of inserted user.
-    #[oai(status = 200)]
+    #[oai(status = 201)]
     Ok(Json<i32>),
 
     /// Handle or email already in use.
@@ -72,7 +77,12 @@ enum RegisterResp {
 #[OpenApi(prefix_path = "/auth", tag = "Tags::Auth")]
 impl Endpoints {
     #[oai(path = "/login", method = "post", operation_id = "login")]
-    async fn login(&self, creds: Json<Credentials>, state: Data<&AppState>) -> LoginResp {
+    async fn login(
+        &self,
+        creds: Json<Credentials>,
+        jar: &CookieJar,
+        state: Data<&AppState>,
+    ) -> LoginResp {
         match user::Entity::find_by_email_or_handle(&creds.handle)
             .one(&state.conn)
             .await
@@ -80,7 +90,8 @@ impl Endpoints {
             Ok(u) => match u {
                 Some(user) => {
                     if user.verify_pwd(&creds.password) {
-                        LoginResp::Ok(PlainText("mock_api_token".to_string()))
+                        jar.add(Cookie::new("token", user.create_token().unwrap()));
+                        LoginResp::Ok
                     } else {
                         LoginResp::Bad
                     }
@@ -88,26 +99,43 @@ impl Endpoints {
                 None => LoginResp::Bad,
             },
             Err(e) => {
-                error!(err = e.to_string(), "err during login");
+                #[cfg(debug_assertions)]
+                error!(err = %e, "err during login");
                 LoginResp::InternalError
             }
         }
     }
 
     #[oai(path = "/register", method = "post", operation_id = "register")]
-    async fn register(&self, req: Json<RegisterReq>, state: Data<&AppState>) -> RegisterResp {
+    async fn register(
+        &self,
+        req: Json<RegisterReq>,
+        jar: &CookieJar,
+        state: Data<&AppState>,
+    ) -> RegisterResp {
         let u = user::ActiveModel {
             display_name: Set(req.display_name.clone()),
             handle: Set(req.handle.clone()),
             email: Set(req.email.0.clone()),
-            password: Set(hash::hash_pwd(&req.password)),
+            password: Set(req.password.0.clone()),
             ..Default::default()
         };
-        match user::Entity::insert(u).exec(&state.conn).await {
-            Ok(r) => RegisterResp::Ok(Json(r.last_insert_id)),
+        match user::Entity::insert(u)
+            .exec_with_returning(&state.conn)
+            .await
+        {
+            Ok(r) => {
+                // TODO: proper err handling
+                jar.add(Cookie::new("token", r.create_token().unwrap()));
+                RegisterResp::Ok(Json(r.id))
+            }
             Err(e) => match e.sql_err() {
                 Some(SqlErr::UniqueConstraintViolation(f)) => RegisterResp::Conflict(PlainText(f)),
-                _ => RegisterResp::InternalError,
+                e => {
+                    #[cfg(debug_assertions)]
+                    error!(err = ?e, "err during registration");
+                    RegisterResp::InternalError
+                }
             },
         }
     }
