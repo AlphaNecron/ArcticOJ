@@ -15,8 +15,10 @@ impl ActiveModelBehavior for user::ActiveModel {
         _db: &C,
         insert: bool,
     ) -> Result<Self, DbErr> {
-        if insert {
+        if self.password.is_set() {
             self.password = Set(hash::hash_pwd(&self.password.take().unwrap()));
+        }
+        if insert {
             self.uid = Set(CUID.create_id());
         }
         Ok(self)

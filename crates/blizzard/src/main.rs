@@ -1,8 +1,8 @@
 use crate::prelude::*;
 use crate::state::AppState;
-use miette::IntoDiagnostic;
+use miette::{IntoDiagnostic, WrapErr};
 use poem::listener::{Listener, TcpListener, UnixListener};
-use poem::middleware::{AddData, RequestId, Tracing};
+use poem::middleware::{AddData, CookieJarManager, RequestId, Tracing};
 use poem::{EndpointExt, Route, Server};
 use poem_grants::GrantsMiddleware;
 use poem_openapi::OpenApiService;
@@ -29,21 +29,26 @@ async fn main() -> miette::Result<()> {
         .with_max_level(Level::DEBUG)
         .init();
 
+    miette::set_panic_hook();
+
     let conf = config::Config::load()?;
     info!("config loaded");
 
-    let db = db::from(&conf.database_url).await.unwrap_or_else(|e| {
-        error!(err = %e, "err connecting to db");
-        std::process::exit(1);
-    });
+    let db = db::from(&conf.database_url)
+        .await
+        .into_diagnostic()
+        .wrap_err("err connecting to db")?;
 
-    let app = OpenApiService::new(
+    let mut app = OpenApiService::new(
         route::all(),
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION"),
     )
-    .summary("Just another code jury platform.")
-    .server("http://localhost:2999");
+    .summary("Just another code jury platform.");
+
+    if conf.listener.protocol == config::Protocol::Tcp {
+        app = app.server(format!("http://{}", conf.listener.path))
+    }
 
     let scalar = scalar::endpoint();
 
@@ -61,8 +66,8 @@ async fn main() -> miette::Result<()> {
                 "/",
                 app.with(RequestId::default())
                     .with(AddData::new(AppState { conn: db }))
+                    .with(CookieJarManager::new())
                     .with_if(cfg!(debug_assertions), Tracing)
-                    .with(Body)
                     .with(GrantsMiddleware::with_extractor(extractor::grants::extract)),
             )
             .nest("/openapi.json", spec)

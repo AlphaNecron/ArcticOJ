@@ -3,12 +3,16 @@ name = "igloo"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "igloo-cli"
-path = "src/bin/cli.rs"
-
-[[bin]]
-name = "igloo-tui"
-path = "src/bin/tui.rs"
-
 [dependencies]
+which = "8.0.0"
+inventory.workspace = true
+async-trait.workspace = true
+rayon = "1.11.0"
+crossbeam = "0.8.4"
+cuid2.workspace = true
+thiserror.workspace = true
+if_chain.workspace = true
+regex.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true

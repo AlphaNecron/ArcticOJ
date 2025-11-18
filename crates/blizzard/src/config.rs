@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 const CONF_FILE: &str = "config.kdl";
 
-#[derive(Debug, Deserialize, Serialize, Default, config::Scalar)]
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Default, config::Scalar)]
 #[serde(rename_all = "kebab-case")]
 pub enum Protocol {
     #[cfg(target_family = "unix")]

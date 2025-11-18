@@ -1,9 +1,9 @@
 use super::prelude::*;
 use poem::session::Session;
-use poem::web::cookie::{Cookie, CookieJar};
+use poem::web::cookie::{Cookie, CookieJar, PrivateCookieJar, SignedCookieJar};
 use poem_openapi::SecurityScheme;
 use poem_openapi::auth::ApiKey;
-use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, DatabaseConnection};
 
 pub(super) struct Endpoints;
 
@@ -113,16 +113,15 @@ impl Endpoints {
         jar: &CookieJar,
         state: Data<&AppState>,
     ) -> RegisterResp {
-        let u = user::ActiveModel {
+        match (user::ActiveModel {
             display_name: Set(req.display_name.clone()),
             handle: Set(req.handle.clone()),
             email: Set(req.email.0.clone()),
             password: Set(req.password.0.clone()),
             ..Default::default()
-        };
-        match user::Entity::insert(u)
-            .exec_with_returning(&state.conn)
-            .await
+        })
+        .insert(&state.conn)
+        .await
         {
             Ok(r) => {
                 // TODO: proper err handling
@@ -131,7 +130,7 @@ impl Endpoints {
             }
             Err(e) => match e.sql_err() {
                 Some(SqlErr::UniqueConstraintViolation(f)) => RegisterResp::Conflict(PlainText(f)),
-                e => {
+                _ => {
                     #[cfg(debug_assertions)]
                     error!(err = ?e, "err during registration");
                     RegisterResp::InternalError
