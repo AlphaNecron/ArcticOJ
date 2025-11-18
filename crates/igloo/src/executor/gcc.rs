@@ -1,15 +1,15 @@
-use super::{RtDesc, Runtime};
-use crate::runtime::error::SelfTestErr;
+use super::{Desc, Executor};
+use crate::executor::error::SelfTestErr;
 use crate::util::is_executable;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::Command;
 
-pub(super) struct GCC {
+pub(super) struct Gcc {
     argv0: Option<PathBuf>,
 }
 
-impl GCC {
+impl Gcc {
     fn get_version(p: PathBuf) -> Option<String> {
         match Command::new(p).args(["--version"]).output() {
             Ok(out) => {
@@ -28,9 +28,9 @@ impl GCC {
 }
 
 #[async_trait::async_trait]
-impl Runtime for GCC {
-    fn desc(&self) -> RtDesc {
-        RtDesc {
+impl Executor for Gcc {
+    fn desc(&self) -> Desc {
+        Desc {
             id: "gcc".to_string(),
         }
     }
@@ -53,8 +53,8 @@ impl Runtime for GCC {
     }
 }
 
-pub(super) fn new() -> Box<GCC> {
-    Box::new(GCC {
+pub(super) fn new() -> Box<Gcc> {
+    Box::new(Gcc {
         argv0: which::which("g++").ok(),
     })
 }

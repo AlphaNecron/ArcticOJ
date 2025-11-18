@@ -1,17 +1,17 @@
-use crate::runtime::error::SelfTestErr;
+use crate::executor::error::SelfTestErr;
 
 mod error;
 mod gcc;
 mod python;
 
 #[derive(Debug)]
-pub(crate) struct RtDesc {
+pub(crate) struct Desc {
     pub(crate) id: String,
 }
 
 #[async_trait::async_trait]
-pub(crate) trait Runtime: 'static {
-    fn desc(&self) -> RtDesc;
+pub(crate) trait Executor: 'static {
+    fn desc(&self) -> Desc;
     fn argv0(&self) -> Option<String>;
     async fn self_test(&self) -> Result<String, SelfTestErr>;
     fn boxed(self) -> Box<Self>
@@ -22,6 +22,6 @@ pub(crate) trait Runtime: 'static {
     }
 }
 
-pub(crate) fn runtimes() -> Vec<Box<dyn Runtime + 'static>> {
+pub(crate) fn executors() -> Vec<Box<dyn Executor + 'static>> {
     vec![gcc::new(), python::python3(), python::pypy3()]
 }

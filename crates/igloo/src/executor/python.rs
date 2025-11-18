@@ -1,5 +1,5 @@
-use super::{RtDesc, Runtime};
-use crate::runtime::error::SelfTestErr;
+use super::{Desc, Executor};
+use crate::executor::error::SelfTestErr;
 use crate::util;
 use regex::Regex;
 use std::process::Command;
@@ -57,9 +57,9 @@ impl Python {
 }
 
 #[async_trait::async_trait]
-impl Runtime for Python {
-    fn desc(&self) -> RtDesc {
-        RtDesc {
+impl Executor for Python {
+    fn desc(&self) -> Desc {
+        Desc {
             id: match self.ty.clone() {
                 Type::PyPy2 => "pypy2",
                 Type::PyPy3 => "pypy3",
