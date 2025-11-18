@@ -10,7 +10,7 @@ pub(crate) struct Desc {
 }
 
 #[async_trait::async_trait]
-pub(crate) trait Executor: 'static {
+pub(crate) trait Executor: 'static + Send + Sync {
     fn desc(&self) -> Desc;
     fn argv0(&self) -> Option<String>;
     async fn self_test(&self) -> Result<String, SelfTestErr>;

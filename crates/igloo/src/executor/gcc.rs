@@ -11,19 +11,20 @@ pub(super) struct Gcc {
 
 impl Gcc {
     fn get_version(p: PathBuf) -> Option<String> {
-        match Command::new(p).args(["--version"]).output() {
-            Ok(out) => {
-                match out.stdout.lines().next() {
-                    Some(line) => {
-                        // assuming `g++ (GCC) 15.2.1 20251112`
-                        line.map(|l| l.split_whitespace().nth(2).unwrap().to_string())
-                            .ok()
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
+        // assuming `g++ (GCC) 15.2.1 20251112`
+        Some(
+            Command::new(p)
+                .args(["--version"])
+                .output()
+                .ok()?
+                .stdout
+                .lines()
+                .next()?
+                .ok()?
+                .split_whitespace()
+                .nth(2)?
+                .to_string(),
+        )
     }
 }
 
