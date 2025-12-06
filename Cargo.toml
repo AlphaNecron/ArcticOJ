@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/igloo", "crates/migration", "crates/blizzard", "crates/config", "crates/derive", "crates/sandbox"]
+members = ["crates/*"]
 
 [workspace.dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
@@ -14,10 +14,18 @@ migration = { path = "crates/migration" }
 config = { path = "crates/config" }
 miette = { version = "7.6.0", features = ["fancy"] }
 knus = { version = "3.3.1", features = ["derive", "knus-derive"] }
-sea-orm = { version = "2.0.0-rc", features = ["macros", "sqlx-postgres", "runtime-tokio"] }
+sea-orm = { version = "2.0.0-rc.20", features = ["macros", "sqlx-postgres", "runtime-tokio"] }
 thiserror = "2"
 scopeguard = "1.2.0"
 cuid2 = "0.1.4"
 inventory = "0.3.21"
 if_chain = "1.0.3"
 regex = "1.12.2"
+syn = { version = "2.0.111", features = ["full"] }
+quote = "1.0.42"
+proc-macro2 = "1.0.103"
+clap = { features = ["derive"], version = "4.5.53" }
+darling = "0.23.0"
+env_logger = { features = ["color"], version = "0.11.8" }
+log = "0.4.29"
+rand = "0.9.2"

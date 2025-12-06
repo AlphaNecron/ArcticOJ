@@ -1,27 +1,17 @@
-use crate::executor::error::SelfTestErr;
-
+mod compiled;
 mod error;
 mod gcc;
+mod go;
+mod prelude;
 mod python;
 
-#[derive(Debug)]
-pub(crate) struct Desc {
-    pub(crate) id: String,
-}
+use crate::executor::error::SelfTestErr;
+use prelude::*;
 
-#[async_trait::async_trait]
-pub(crate) trait Executor: 'static + Send + Sync {
-    fn desc(&self) -> Desc;
-    fn argv0(&self) -> Option<String>;
-    async fn self_test(&self) -> Result<String, SelfTestErr>;
-    fn boxed(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
-    }
-}
-
-pub(crate) fn executors() -> Vec<Box<dyn Executor + 'static>> {
-    vec![gcc::new(), python::python3(), python::pypy3()]
-}
+// executor-specific stuff
+// #[async_trait::async_trait]
+// pub(crate) trait _Executor: 'static + Send + Sync {
+//     async fn self_test(&self, env: &'static BoxedEnv) -> Result<String, SelfTestErr>;
+//     // async fn judge(&self);
+//     async fn get_version(&self, exec_path: impl Into<String>);
+// }

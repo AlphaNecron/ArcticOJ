@@ -13,6 +13,14 @@ cuid2.workspace = true
 thiserror.workspace = true
 if_chain.workspace = true
 regex.workspace = true
+tokio.workspace = true
+dashmap = { version = "7.0.0-rc2", features = ["rayon"] }
+igloo-proc-macro = { path = "../igloo-proc-macro" }
+clap.workspace = true
+memfd = "0.6.5"
+scopeguard.workspace = true
+rustix = { version = "1.1.2", features = ["linux_5_11", "runtime", "thread", "fs", "system", "process", "pipe", "mount"] }
+miette.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-tokio.workspace = true
+chrono.workspace = true

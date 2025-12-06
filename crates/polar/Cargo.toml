@@ -1,0 +1,16 @@
+[package]
+name = "polar"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["lv0"]
+# igloo (proc #1) < - > polar (proc #2) < - > blizzard (proc #3)
+lv2 = ["quic-rpc/iroh-transport"]
+# igloo (proc #1) < - > polar (proc #2) < - > blizzard (proc #2)
+lv1 = ["quic-rpc/iroh-transport", "quic-rpc/flume-transport"]
+# igloo < - > polar < - > blizzard (on the same proc)
+lv0 = ["quic-rpc/flume-transport"]
+
+[dependencies]
+quic-rpc = { version = "0.20.0", default-features = false, features = ["macros", "futures"] }
