@@ -1,0 +1,1 @@
+cargo with "sudo -E" -- run --package igloo --bin isolate

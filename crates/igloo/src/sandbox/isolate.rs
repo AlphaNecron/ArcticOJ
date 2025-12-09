@@ -1,17 +1,19 @@
 use crate::prelude::*;
-use rustix::fs::Mode;
-use rustix::mount::{MountFlags, MountPropagationFlags, UnmountFlags, mount_change, unmount};
+use rustix::fs::OFlags;
+use rustix::mount::{
+    MountFlags, MountPropagationFlags, UnmountFlags, mount_change, mount_remount, unmount,
+};
 use rustix::process::{chdir, chroot};
-use rustix::thread::LinkNameSpaceType::Mount;
+use rustix::thread::{Gid, Uid};
 use rustix::{
-    fs,
+    fs, io,
     mount::mount,
-    path, process,
+    process,
     thread::{self, UnshareFlags},
 };
-use std::ffi::{CStr, CString, c_int, c_short, c_uint, c_ushort};
-use std::fs::{create_dir, read_dir, write};
-use std::path::{Path, PathBuf};
+use std::ffi::{CString, c_int, c_short, c_uint, c_ushort};
+use std::fs::{create_dir_all, read_dir, write};
+use std::path::PathBuf;
 
 // src/dst - rw
 struct Bind<'a>(&'a str, bool);
@@ -19,79 +21,64 @@ struct Bind<'a>(&'a str, bool);
 const UID: c_uint = 65534;
 const GID: c_uint = UID;
 
-#[inline]
-pub(super) fn unshare() -> rustix::io::Result<()> {
-    debug!("unsharing proc");
-    unsafe {
-        thread::unshare_unsafe(
-            UnshareFlags::NEWNS
-                | UnshareFlags::NEWPID
-                | UnshareFlags::NEWUSER
-                | UnshareFlags::NEWUTS
-                | UnshareFlags::NEWTIME
-                | UnshareFlags::NEWCGROUP,
-        )
-    }
-}
-
-const fn binds<'a>() -> [Bind<'a>; 10] {
-    [
-        Bind("/bin", false),
-        Bind("/lib", false),
-        Bind("/lib64", false),
-        Bind("/usr", false),
-        Bind("/etc/ld.so.cache", false),
-        Bind("/dev/null", true),
-        Bind("/dev/urandom", true),
-        Bind("/dev/random", true),
-        Bind("/dev/zero", true),
-        Bind("/dev/full", true),
-    ]
-}
-
 // mask user & group w an arbitrary one
 #[inline]
-pub(super) fn mask_ug(pid: thread::Pid) -> std::io::Result<()> {
-    debug!(pid=%pid, "masking uid/gid to {}:{}", UID, GID);
-    let p = pid.as_raw_pid();
-    write(format!("/proc/{}/setgroups", p), "deny")?;
+pub(super) fn mask_ug() -> std::io::Result<()> {
+    debug!("masking uid/gid to {}:{}", UID, GID);
+    write("/proc/self/setgroups", "deny")?;
 
-    write(format!("/proc/{}/uid_map", p), format!("{0} {0} 1", GID))?;
-    write(format!("/proc/{}/gid_map", p), format!("{0} {0} 1", UID))?;
+    // write("/proc/self/uid_map", format!("{0} {0} 1", GID))?;
+    // write("/proc/self/gid_map", format!("{0} {0} 1", UID))?;
 
-    // thread::set_thread_uid(Uid::from_raw(UID)).unwrap();
-    // thread::set_thread_gid(Gid::from_raw(GID)).unwrap();
+    // thread::set_thread_uid(Uid::from_raw(UID))?;
+    // thread::set_thread_gid(Gid::from_raw(GID))?;
 
     Ok(())
 }
 
 #[inline]
 pub(super) fn remount(tmp: PathBuf) -> std::io::Result<()> {
-    debug!(tmp = ?tmp, "mounting root");
+    debug!(tmp = ?tmp, "remounting root");
     mount_change(
         "/",
         MountPropagationFlags::REC | MountPropagationFlags::PRIVATE,
     )?;
 
-    mount(&tmp, &tmp, "none", MountFlags::BIND | MountFlags::REC, None)?;
+    mount(&tmp, &tmp, "", MountFlags::BIND | MountFlags::REC, None)?;
 
-    fs::mkdir(tmp.join("etc"), 0o755.into())?;
-    fs::mkdir(tmp.join("dev"), 0o755.into())?;
+    for b in &super::CONTAINER_CONF.dir_binds {
+        debug!(
+            rw = b.rw.unwrap_or(false),
+            exec = b.exec.unwrap_or(false),
+            path = b.path,
+            "binding dir {:?}",
+            b.opts(),
+        );
+        let d = tmp.join(b.path.strip_prefix("/").unwrap());
+        create_dir_all(&d)?;
+        mount(&b.path, &d, "", MountFlags::BIND | MountFlags::REC, None)?;
+        if !b.flags().is_empty() {
+            mount_remount(d, MountFlags::BIND | MountFlags::REC | b.flags(), b.opts())?;
+        }
+    }
 
-    for b in binds() {
-        let d = tmp.join(b.0.strip_prefix("/").unwrap());
-        let dir = fs::stat(b.0).is_ok_and(|x| fs::FileType::from_raw_mode(x.st_mode).is_dir());
-        debug!(target = b.0, rw = ?b.1, is_dir = dir, "binding");
-        let mut f = MountFlags::BIND | MountFlags::REC;
-        if b.1 {
-            f |= MountFlags::RDONLY;
+    for b in &super::CONTAINER_CONF.file_binds {
+        debug!(
+            rw = b.rw.unwrap_or(false),
+            exec = b.exec.unwrap_or(false),
+            path = b.path,
+            "binding file {:?}",
+            b.opts()
+        );
+        let d = tmp.join(b.path.strip_prefix("/").unwrap());
+        if let Some(par) = d.parent() {
+            create_dir_all(par)?;
         }
-        if dir {
-            fs::mkdir(&d, 0o555.into())?;
-        } else {
-            write(&d, [])?;
+        write(&d, [])?;
+        mount(&b.path, &d, "", MountFlags::BIND, None)?;
+        if !b.flags().is_empty() {
+            mount_remount(d, MountFlags::BIND | b.flags(), b.opts())?;
         }
-        mount(b.0, &d, "none", f, None)?;
     }
 
     debug!("cd to tmp");
@@ -100,6 +87,19 @@ pub(super) fn remount(tmp: PathBuf) -> std::io::Result<()> {
     debug!("pivot_root to tmp");
     fs::mkdir("old_root", 0o755.into())?;
     process::pivot_root(".", "old_root")?;
+
+    for m in &super::CONTAINER_CONF.mounts {
+        debug!(opts = m.opts, path = m.path, "mounting",);
+        create_dir_all(&m.path)?;
+        let opts = CString::new(m.opts.clone())?;
+        mount(
+            &m.name,
+            &m.path,
+            &m.ty,
+            MountFlags::empty(),
+            opts.as_c_str(),
+        )?;
+    }
 
     debug!("chroot");
     chroot("/")?;
@@ -117,9 +117,32 @@ pub(super) fn remount(tmp: PathBuf) -> std::io::Result<()> {
         None,
     )?;
 
+    for m in &super::CONTAINER_CONF.masks {
+        debug!(path = m, "masking file");
+        // if let Some(par) = &m.parent() {
+        //     create_dir_all(par)?;
+        // }
+        write(m, [])?;
+        mount("/dev/null", m, "", MountFlags::BIND, None)?;
+    }
+
+    // placing this inside pivot_root seems safer, I accidentally deleted /etc/passwd during dev tho :sob:
+    for f in &super::CONTAINER_CONF.files {
+        debug!(path = f.path, buf = f.buf, mode = ?fs::Mode::from_raw_mode(f.perm as u32), "creating file");
+        let fd = fs::openat(
+            fs::CWD,
+            &f.path,
+            OFlags::CREATE | OFlags::WRONLY | OFlags::TRUNC | OFlags::CLOEXEC,
+            fs::Mode::from_raw_mode(f.perm as u32),
+        )?;
+        io::write(&fd, f.buf.as_bytes())?;
+    }
+
     debug!("cleaning up old root");
     unmount("old_root", UnmountFlags::DETACH)?;
     fs::rmdir("old_root")?;
+
+    chdir(&super::CONTAINER_CONF.wd)?;
 
     Ok(())
 }

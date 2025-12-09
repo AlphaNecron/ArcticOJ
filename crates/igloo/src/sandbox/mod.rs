@@ -1,7 +1,7 @@
-use std::ffi::CString;
 use std::time::Duration;
 
 mod cg;
+mod conf;
 mod container;
 mod isolate;
 mod manager;
@@ -22,3 +22,8 @@ pub struct ExecOptions<T: Into<Vec<u8>>> {
 }
 
 pub use manager::Manager;
+
+lazy_static::lazy_static! {
+    static ref CONTAINER_CONF: conf::ContainerConf =
+        knus::parse::<conf::ContainerConf>("container.kdl", include_str!("container.kdl")).unwrap();
+}

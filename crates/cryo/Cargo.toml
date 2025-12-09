@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ipc-channel.workspace = true
+clone3 = { features = ["linux_5-7"], version = "0.2.3" }
+rustix = { workspace = true, features = ["runtime", "thread", "fs", "system", "process", "pipe", "mount"] }
+serde.workspace = true
+rmp.workspace = true
+rmp-serde.workspace = true

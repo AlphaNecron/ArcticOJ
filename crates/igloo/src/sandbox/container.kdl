@@ -1,0 +1,38 @@
+hostname "igloo.arctic.necron.dev"
+uid 65534
+gid 65534
+
+bind "/bin" exec=true
+bind "/lib"
+bind "/lib64"
+bind "/usr" exec=true
+
+bindf "/etc/ld.so.cache"
+bindf "/dev/null" rw=true
+bindf "/dev/urandom" rw=true
+bindf "/dev/random" rw=true
+bindf "/dev/zero" rw=true
+bindf "/dev/full" rw=true
+
+mount "wd" "/w" type="tmpfs" opts="size=16m,nr_inodes=4k"
+mount "tmp" "/tmp" type="tmpfs" opts="size=32m,nr_inodes=4k"
+
+env "PATH" "/usr/local/bin:/usr/bin:/bin"
+env "USER" "igloo"
+
+//mask "/proc/acpi"
+//mask "/proc/asound"
+//mask "/proc/kcore"
+//mask "/proc/keys"
+//mask "/proc/latency_stats"
+//mask "/proc/timer_list"
+//mask "/proc/timer_stats"
+//mask "/proc/sched_debug"
+//mask "/proc/scsi"
+//mask "/usr/lib/wsl/drivers"
+//mask "/usr/lib/wsl/lib"
+
+file "/etc/passwd" "igloo:x:65534:65534:Arctic Online Judge:/w:/usr/bin/nologin" perm=0o644
+file "/etc/group" "igloo:x:65534:igloo" perm=0o644
+
+wd "/w"

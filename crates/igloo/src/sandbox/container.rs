@@ -1,15 +1,14 @@
 use super::cg::CG;
-use super::prelude::*;
 use super::{ExecOptions, isolate};
 use crate::prelude::*;
 use rustix::fs::mkdir;
-use rustix::runtime::{EXIT_FAILURE, Fork};
-use rustix::{io, pipe, process, runtime, system, thread};
+use rustix::io::Errno;
+use rustix::runtime::EXIT_FAILURE;
+use rustix::{process, runtime, system};
 use std::env::temp_dir;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fs::remove_dir_all;
 use std::ptr;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 enum ExecErr {
     CgErr,
@@ -29,6 +28,7 @@ impl Container {
     // }
 
     pub(super) fn new(id: impl Into<String>) -> Self {
+        println!("{:?}", *super::CONTAINER_CONF);
         let _id = id.into();
         Self {
             id: _id.clone(),
@@ -49,7 +49,12 @@ impl Container {
             .collect::<Result<Vec<CString>, _>>()
             .unwrap_or(vec![]);
 
-        let cenv: Vec<CString> = vec![];
+        let cenv = super::CONTAINER_CONF
+            .env_vars
+            .iter()
+            .map(|e| CString::new(format!("{}={}", e.key, e.value)))
+            .collect::<Result<Vec<CString>, _>>()
+            .unwrap_or(vec![]);
 
         let tmp = temp_dir().join(format!(
             "jail-{}-{}",
@@ -59,19 +64,30 @@ impl Container {
 
         mkdir(&tmp, 0o755.into())?;
 
-        let p = unsafe { runtime::kernel_fork() };
-
-        match p? {
-            Fork::Child(pid) => {
+        match unsafe {
+            clone3::clone3_system_call(
+                &clone3::Clone3::default()
+                    .flag_into_cgroup(&self.cg.fd()?)
+                    .flag_newns()
+                    .flag_newpid()
+                    .flag_newuts()
+                    .flag_newipc()
+                    .flag_newnet()
+                    .flag_newtime()
+                    .flag_newuser()
+                    .as_clone_args(),
+            )
+        } {
+            0 => {
                 //     defer_on_unwind! {
                 //     let _ = runtime::tkill(pid, runtime::Signal::KILL);
                 // };
 
-                isolate::unshare()?;
+                // isolate::unshare()?;
 
-                // isolate::mask_ug(pid)?;
+                isolate::mask_ug()?;
 
-                system::sethostname("igloo.arctic.necron.dev".as_bytes())?;
+                system::sethostname(super::CONTAINER_CONF.hostname.as_bytes())?;
 
                 isolate::remount(tmp)?;
 
@@ -94,14 +110,16 @@ impl Container {
 
                 runtime::exit_group(EXIT_FAILURE);
             }
-            Fork::ParentOf(pid) => {
+            pid if pid > 0 => {
                 debug!(pid = %pid, "proc spawned");
-                self.cg.bindp(pid).ok();
-                if let Some((p, ws)) = process::waitpid(Some(pid), process::WaitOptions::empty())? {
+                let p = process::Pid::from_raw(pid as i32).unwrap();
+                self.cg.bindp(p).ok();
+                if let Some((p, ws)) = process::waitpid(Some(p), process::WaitOptions::empty())? {
                     remove_dir_all(tmp).ok();
                     debug!(ws = ?ws, pid = %p, "child proc exited");
                 }
             }
+            e => return Err(Errno::from_raw_os_error(e as i32).into()),
         }
         Ok(())
     }

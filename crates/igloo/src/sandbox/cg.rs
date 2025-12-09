@@ -26,23 +26,6 @@ fn check() -> std::io::Result<()> {
     let s = fs::statfs("/sys/fs/cgroup")?;
     assert_eq!(s.f_type, CGV2_SUPER_MAGIC, "expect cgroupv2");
 
-    // unsafe {
-    //     let ff = libc::fcntl(
-    //         File::open(format!("{}/{}", ROOT_SLICE, "cgroup.subtree_control"))
-    //             .expect("couldnt open subtree_control")
-    //             .as_raw_fd(),
-    //         libc::F_GETFL,
-    //     );
-    //
-    //     dbg!(ff, ff & libc::O_ACCMODE);
-    //
-    //     assert_ne!(
-    //         ff & libc::O_ACCMODE,
-    //         libc::O_RDONLY,
-    //         "subtree_control is not writable, rerun as su"
-    //     );
-    // }
-
     Ok(())
 }
 
@@ -57,11 +40,19 @@ fn rec_destroy_cg() -> std::io::Result<()> {
     }
     debug!("cleaning up prev cg");
     for e in read_dir(ROOT_SLICE)? {
-        let p = e?.path();
-        let ps = &p.to_string_lossy();
-        w(ps, "cgroup.kill", "1").ok();
-        remove_dir(&p).ok();
-        debug!(path = ps.to_string(), "cleaning up cg")
+        match e {
+            Ok(e) => {
+                if !e.metadata()?.is_dir() {
+                    continue;
+                }
+                let p = e.path();
+                let ps = &p.to_string_lossy();
+                w(ps, "cgroup.kill", "1").ok();
+                remove_dir(&p).ok();
+                debug!(path = ps.to_string(), "cleaning up cg")
+            }
+            _ => continue,
+        }
     }
     Ok(())
 }
@@ -109,5 +100,14 @@ impl CG {
     pub(super) fn bindp(&self, pid: Pid) -> std::io::Result<()> {
         debug!(pid = %pid, "binding proc to cg");
         w(&self.0, "cgroup.procs", &pid.to_string())
+    }
+
+    pub(super) fn fd(&self) -> rustix::io::Result<std::os::fd::OwnedFd> {
+        fs::openat(
+            fs::CWD,
+            &self.0,
+            fs::OFlags::RDONLY | fs::OFlags::DIRECTORY | fs::OFlags::CLOEXEC,
+            fs::Mode::empty(),
+        )
     }
 }

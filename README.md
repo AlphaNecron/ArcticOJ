@@ -1,4 +1,4 @@
-# ArcticOJ :: Resurrected
+# ArcticOJ
 
 Just another ArcticOJ rewrite, but now to Rust.
 > With the same philosophy as Go-based `ArcticOJ`, (not-so) lightweight & (not-so) portable.
@@ -19,10 +19,10 @@ and a lot more...
 
 ## Crates
 
-| Name       | Desc                                                                                                                    |
-|------------|-------------------------------------------------------------------------------------------------------------------------|
-| `blizzard` | API server                                                                                                              |
-| `igloo`    | Judge server (with sandbox)                                                                                             |
-| `polar`    | Bridge interface between `blizzard` & `igloo`<br/>(integrated into `blizzard`)                                          |
-| `cryo`     | Zygote program to exec code inside container<br/>(to reduce container initialization overhead by using a preforked one) ||
+| Name         | Desc                                                                                                                                                                                      |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `blizzard`   | API server                                                                                                                                                                                |
+| `igloo`      | Judge server (with sandbox)                                                                                                                                                               |
+| `polar`      | Bridge interface between `blizzard` & `igloo`<br/>(integrated into `blizzard`)                                                                                                            |
+| `cryo`       | Zygote program to exec code inside container<br/>(to reduce container initialization overhead by using a preforked one)<br/>(Not sure if its needed but its kinda complicated to impl...) ||
 
