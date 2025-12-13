@@ -19,10 +19,59 @@ and a lot more...
 
 ## Crates
 
-| Name         | Desc                                                                                                                                                                                      |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `blizzard`   | API server                                                                                                                                                                                |
-| `igloo`      | Judge server (with sandbox)                                                                                                                                                               |
-| `polar`      | Bridge interface between `blizzard` & `igloo`<br/>(integrated into `blizzard`)                                                                                                            |
-| `cryo`       | Zygote program to exec code inside container<br/>(to reduce container initialization overhead by using a preforked one)<br/>(Not sure if its needed but its kinda complicated to impl...) ||
+| Name    | Desc                                                                                                                                                                                      |
+|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `blizzard` | API server                                                                                                                                                                                |
+| `igloo` | Judge server (with sandbox)                                                                                                                                                               |
+| `polar` | Bridge interface between `blizzard` & `igloo`<br/>(integrated into `blizzard`)                                                                                                            |
+| `igloo` | Zygote program to exec code inside container<br/>(to reduce container initialization overhead by using a preforked one)<br/>(Not sure if its needed but its kinda complicated to impl...) ||
 
+[//]: # (## Running as unprivileged user &#40;rootless&#41; &#40;WIP&#41;)
+
+[//]: # (```shell)
+
+[//]: # (sudo setcap )
+
+[//]: # (sudo vi /etc/cgconfig.conf)
+
+[//]: # (```)
+
+[//]: # (```)
+
+[//]: # (group igloo.slice {)
+
+[//]: # (    perm {)
+
+[//]: # (        task {)
+
+[//]: # (                uid = 1000;)
+
+[//]: # (        })
+
+[//]: # (        admin {)
+
+[//]: # (                uid = 1000;)
+
+[//]: # (        })
+
+[//]: # (    })
+
+[//]: # (	cpuset {})
+
+[//]: # (	cpu {})
+
+[//]: # (	io {})
+
+[//]: # (	memory {})
+
+[//]: # (	pids {})
+
+[//]: # (})
+
+[//]: # (```)
+
+[//]: # (```shell)
+
+[//]: # (sudo systemctl start cgconfig.service)
+
+[//]: # (```)

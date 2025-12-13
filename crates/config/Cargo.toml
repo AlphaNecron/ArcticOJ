@@ -1,7 +1,11 @@
 [package]
 name = "config"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
 [dependencies]
 knus.workspace = true
@@ -9,3 +13,4 @@ figment = { version = "0.10.19", features = ["env"] }
 tracing.workspace = true
 miette.workspace = true
 serde.workspace = true
+config-proc-macro.path = "../config-proc-macro"

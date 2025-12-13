@@ -1,1 +1,1 @@
-pub(crate) use tracing::{debug, warn};
+pub(crate) use tracing::debug;

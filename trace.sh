@@ -1,1 +1,0 @@
-cargo with "sudo -E strace -f -e namespace=new -e trace=mount,clone,unshare,execve,mkdir,chdir,pivot_root,openat" -- run --package igloo --bin isolate

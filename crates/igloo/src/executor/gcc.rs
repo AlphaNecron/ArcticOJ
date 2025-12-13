@@ -1,8 +1,7 @@
-use super::prelude::*;
 use std::io::BufRead;
 use std::process::Command;
 
-const TEST_PROG: &str = include_str!("test_progs/main.cpp");
+static TEST_PROG: &str = include_str!("test_progs/main.cpp");
 
 async fn self_test(p: String) -> Option<String> {
     // assuming `g++ (GCC) 15.2.1 20251112`

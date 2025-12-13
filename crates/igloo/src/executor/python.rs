@@ -1,8 +1,4 @@
-use super::prelude::*;
-use regex::Regex;
-use std::process::Command;
-
-const TEST_PROG: &str = include_str!("test_progs/main.py");
+static TEST_PROG: &str = include_str!("test_progs/main.py");
 
 #[derive(Clone)]
 enum Type {

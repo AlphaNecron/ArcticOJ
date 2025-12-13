@@ -1,13 +1,19 @@
 use super::cg::CG;
-use super::{ExecOptions, isolate};
+use super::isolate;
 use crate::prelude::*;
-use rustix::fs::mkdir;
-use rustix::io::Errno;
-use rustix::runtime::EXIT_FAILURE;
-use rustix::{process, runtime, system};
+use cryo::{CompileArgs, Req};
+use rustix::process::{Pid, WaitId, WaitIdOptions, WaitOptions, wait, waitid, waitpid};
+use rustix::stdio::{dup2_stdin, dup2_stdout};
+use rustix::{
+    fs::{AtFlags, mkdir},
+    io::{self, Errno},
+    process, runtime, stdio, system,
+};
 use std::env::temp_dir;
-use std::ffi::CString;
+use std::ffi::{CStr, CString, c_char};
 use std::fs::remove_dir_all;
+use std::os::fd::{AsFd, FromRawFd, OwnedFd, RawFd};
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 enum ExecErr {
@@ -17,110 +23,135 @@ enum ExecErr {
 pub struct Container {
     // opts: Options,
     id: String,
-    cg: CG,
+    root: PathBuf,
+    ipc: super::ipc::Conn,
+    pid: OwnedFd,
+}
+
+macro_rules! cstrv {
+    ($v: expr) => {{
+        let mut vp: Vec<*const u8> = $v.iter().map(|s| s.as_bytes_with_nul().as_ptr()).collect();
+        vp.push(std::ptr::null());
+        vp
+    }};
 }
 
 impl Container {
-    // fn cg_reinit(&self) -> Result<(), cgroups_rs::fs::error::Error> {
-    //     self.cg.delete()?;
-    //     self.cg.create()?;
-    //     Ok(())
-    // }
+    // TODO: impl seccomp
+    // TODO: impl landlock
+    // TODO: reap zomb procs
+    pub fn new(id: impl Into<String>, root: impl Into<String>) -> std::io::Result<Self> {
+        use rustix::net::{AddressFamily, SocketFlags, SocketType, socketpair};
 
-    pub(super) fn new(id: impl Into<String>) -> Self {
-        println!("{:?}", *super::CONTAINER_CONF);
-        let _id = id.into();
-        Self {
-            id: _id.clone(),
-            // opts,
-            cg: CG::new(_id, "6"),
-        }
-    }
+        let id = id.into();
+        let root = PathBuf::from(root.into());
 
-    pub fn exec(&mut self, opts: ExecOptions<impl Into<Vec<u8>>>) -> std::io::Result<()> {
-        // self.cg.create();
-        // defer! {
-        //     self.cg.delete();
-        // }
-        let cargv = opts
-            .argv
-            .into_iter()
-            .map(CString::new)
-            .collect::<Result<Vec<CString>, _>>()
-            .unwrap_or(vec![]);
+        let conf = &crate::config::CONFIG.sandbox;
 
-        let cenv = super::CONTAINER_CONF
+        let cenv = conf
             .env_vars
             .iter()
             .map(|e| CString::new(format!("{}={}", e.key, e.value)))
             .collect::<Result<Vec<CString>, _>>()
             .unwrap_or(vec![]);
 
-        let tmp = temp_dir().join(format!(
-            "jail-{}-{}",
-            self.id,
-            chrono::Utc::now().timestamp_millis()
-        ));
+        // write from s0 -> read from s1 and vice versa
+        // s0 for par, s1 for child
+        let (s0, s1) = socketpair(
+            AddressFamily::UNIX,
+            SocketType::SEQPACKET,
+            SocketFlags::CLOEXEC,
+            None,
+        )?;
 
-        mkdir(&tmp, 0o755.into())?;
+        use super::clone3 as c3;
 
-        match unsafe {
-            clone3::clone3_system_call(
-                &clone3::Clone3::default()
-                    .flag_into_cgroup(&self.cg.fd()?)
-                    .flag_newns()
-                    .flag_newpid()
-                    .flag_newuts()
-                    .flag_newipc()
-                    .flag_newnet()
-                    .flag_newtime()
-                    .flag_newuser()
-                    .as_clone_args(),
-            )
-        } {
+        let mut pidfd: i32 = -1;
+
+        let mut args = c3::RawCloneArgs {
+            flags: c3::NEWNS
+                | c3::NEWPID
+                | c3::NEWUTS
+                | c3::NEWIPC
+                | c3::NEWNET
+                | c3::NEWTIME
+                | c3::NEWUSER
+                | c3::PIDFD,
+            // SIGCHLD
+            exit_signal: 17,
+            pidfd: &mut pidfd as *mut i32 as u64,
+            ..Default::default()
+        };
+
+        let mfd = &*super::CRYO_MFD;
+        match unsafe { c3::clone3(&mut args) } {
             0 => {
-                //     defer_on_unwind! {
-                //     let _ = runtime::tkill(pid, runtime::Signal::KILL);
-                // };
-
-                // isolate::unshare()?;
-
+                drop(s0);
                 isolate::mask_ug()?;
 
-                system::sethostname(super::CONTAINER_CONF.hostname.as_bytes())?;
+                system::sethostname(id.as_bytes())?;
+                system::setdomainname(conf.domain_name.as_bytes())?;
 
-                isolate::remount(tmp)?;
+                super::mount::isolate(&conf.fs, root)?;
 
-                let mut argvp: Vec<*const u8> = cargv
-                    .iter()
-                    .map(|s| s.as_bytes_with_nul().as_ptr())
-                    .collect();
-                argvp.push(ptr::null());
+                let argvp: Vec<*const u8> = cstrv!(vec![CString::new(id)?]);
 
-                let mut envp: Vec<*const u8> = cenv
-                    .iter()
-                    .map(|s| s.as_bytes_with_nul().as_ptr())
-                    .collect();
-                envp.push(ptr::null());
+                let envp: Vec<*const u8> = cstrv!(cenv);
 
-                let e =
-                    unsafe { runtime::execve(cargv[0].as_c_str(), argvp.as_ptr(), envp.as_ptr()) };
+                // might do some shenanigans with stderr later :p
+                dup2_stdin(s1)?;
 
-                debug!(e=?e, "err calling execve");
+                let e = unsafe {
+                    runtime::execveat(mfd, c"", argvp.as_ptr(), envp.as_ptr(), AtFlags::EMPTY_PATH)
+                };
+                // debug!(e = ? e, "err calling execve");
 
-                runtime::exit_group(EXIT_FAILURE);
+                runtime::exit_group(1);
             }
             pid if pid > 0 => {
-                debug!(pid = %pid, "proc spawned");
-                let p = process::Pid::from_raw(pid as i32).unwrap();
-                self.cg.bindp(p).ok();
-                if let Some((p, ws)) = process::waitpid(Some(p), process::WaitOptions::empty())? {
-                    remove_dir_all(tmp).ok();
-                    debug!(ws = ?ws, pid = %p, "child proc exited");
-                }
+                drop(s1);
+                // TODO: handle when pidfd = uninit
+                dbg!(&args);
+                debug!(%pid, "proc spawned");
             }
-            e => return Err(Errno::from_raw_os_error(e as i32).into()),
+            e => return Err(Errno::from_raw_os_error(-e as i32).into()),
         }
-        Ok(())
+        // TODO: handle when pidfd = uninit
+        dbg!(pidfd);
+        let pidfd = unsafe { OwnedFd::from_raw_fd(pidfd) };
+        let ipc = super::ipc::Conn::new(s0);
+        ipc.wait()?;
+        Ok(Self {
+            id,
+            root,
+            ipc,
+            pid: pidfd,
+        })
+    }
+
+    pub fn wait(&self) {
+        // waitid(WaitId::PidFd(self.pid.as_fd()), WaitIdOptions::empty()).unwrap();
+    }
+
+    pub fn exec(&self) {
+        let cg = CG::new(&self.id, "5");
+        self.ipc
+            .send(
+                Req::Compile(CompileArgs {
+                    time_limit: Default::default(),
+                    // arbitrary vals to test ser/de
+                    mem_limit: 199,
+                    output_limit: 120,
+                }),
+                &[cg.fd().unwrap().as_fd()],
+            )
+            .expect("xd");
+    }
+}
+
+impl Drop for Container {
+    fn drop(&mut self) {
+        debug!(id = self.id, "destroying container");
+        remove_dir_all(&self.root).ok();
     }
 }

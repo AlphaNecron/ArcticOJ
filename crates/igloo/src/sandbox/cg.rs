@@ -10,6 +10,8 @@ const ROOT_SLICE: &str = "/sys/fs/cgroup/igloo.slice";
 const CTRLS: &str = "+memory +pids +cpu +cpuset +io";
 const CGV2_SUPER_MAGIC: ffi::c_long = 1667723888;
 
+enum CompatErr {}
+
 fn check() -> std::io::Result<()> {
     let u = system::uname();
 
@@ -76,9 +78,9 @@ pub(super) fn destroy() -> std::io::Result<()> {
     debug!("destroying root cg");
     w(ROOT_SLICE, "cgroup.kill", "1").ok();
     remove_dir(ROOT_SLICE)
+    // Ok(())
 }
 
-#[derive(Clone)]
 pub(super) struct CG(String);
 
 impl Drop for CG {
@@ -94,12 +96,7 @@ impl CG {
         let p = format!("{}/{}.scope", ROOT_SLICE, id.into());
         create_cg(&p).expect("err creating sub cgroup");
         w(&p, "cpuset.cpus", &cpu.into()).expect("err setting cpu for cg");
-        CG(p)
-    }
-
-    pub(super) fn bindp(&self, pid: Pid) -> std::io::Result<()> {
-        debug!(pid = %pid, "binding proc to cg");
-        w(&self.0, "cgroup.procs", &pid.to_string())
+        Self(p)
     }
 
     pub(super) fn fd(&self) -> rustix::io::Result<std::os::fd::OwnedFd> {

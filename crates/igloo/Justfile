@@ -1,0 +1,19 @@
+traced := "mount,clone,clone3,unshare,execve,mkdir,chdir,pivot_root,openat,recv,recvfrom,recvmsg,send,sendto,sendmsg"
+
+_build_cryo:
+	cargo build --package cryo
+
+_check_isolate:
+	cargo build -q --package igloo --bin isolate
+
+run_isolate wrapper: _build_cryo _check_isolate
+    RUST_BACKTRACE=1 {{wrapper}} ../../target/debug/isolate
+
+trace:
+	just run_isolate "sudo -E strace -f -e namespace=new -e trace={{traced}}"
+
+trace_failed:
+	just run_isolate "sudo -E strace -f -Z"
+
+run:
+	just run_isolate "sudo -E"

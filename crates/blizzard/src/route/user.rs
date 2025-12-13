@@ -1,5 +1,4 @@
 use super::prelude::*;
-use poem_grants::protect;
 
 pub(super) struct CollectionEndpoints;
 pub(super) struct ItemEndpoints;

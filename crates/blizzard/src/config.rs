@@ -1,9 +1,10 @@
-use serde::{Deserialize, Serialize};
+use config::model;
 use std::fmt::Debug;
 
 const CONF_FILE: &str = "config.kdl";
 
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Default, config::Scalar)]
+#[model]
+#[derive(Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Protocol {
     #[cfg(target_family = "unix")]
@@ -12,20 +13,20 @@ pub enum Protocol {
     Tcp,
 }
 
-#[derive(Debug, Deserialize, Serialize, config::Object)]
+#[model]
 pub struct Address {
     #[knus(argument)]
-    pub protocol: Protocol,
+    protocol: Protocol,
     #[knus(argument)]
-    pub path: String,
+    path: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, config::Object)]
+#[model]
 pub struct Config {
     #[knus(child, unwrap(argument))]
-    pub database_url: String,
+    database_url: String,
     #[knus(child)]
-    pub listener: Address,
+    listener: Address,
 }
 
 impl Default for Address {

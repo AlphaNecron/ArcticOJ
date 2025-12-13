@@ -1,85 +1,94 @@
+use config::model;
 use rustix::mount::MountFlags;
-use std::ffi::CString;
 
-#[derive(knus::Decode, Debug)]
-pub(super) struct ContainerConf {
+#[model]
+pub(crate) struct Config {
     #[knus(child, unwrap(argument))]
-    pub(super) hostname: String,
-
-    #[knus(child, unwrap(argument))]
-    pub(super) uid: u32,
+    domain_name: String,
 
     #[knus(child, unwrap(argument))]
-    pub(super) gid: u32,
-
-    #[knus(children(name = "bindf"))]
-    pub(super) file_binds: Vec<Bind>,
-
-    #[knus(children(name = "bind"))]
-    pub(super) dir_binds: Vec<Bind>,
+    uid: u32,
 
     #[knus(child, unwrap(argument))]
-    pub(super) wd: String,
-
-    #[knus(children(name = "mount"))]
-    pub(super) mounts: Vec<Mount>,
-
-    #[knus(children(name = "mask"), unwrap(argument))]
-    pub(super) masks: Vec<String>,
-
-    #[knus(children(name = "file"))]
-    pub(super) files: Vec<File>,
+    gid: u32,
 
     #[knus(children(name = "env"))]
-    pub(super) env_vars: Vec<Env>,
+    env_vars: Vec<Env>,
+
+    #[knus(child)]
+    fs: FS,
 }
 
-#[derive(knus::Decode, Clone, Debug)]
-pub(super) struct Bind {
+#[model]
+pub(crate) struct FS {
     #[knus(argument)]
-    pub(super) path: String,
+    root: String,
 
-    #[knus(property)]
-    pub(super) rw: Option<bool>,
+    #[knus(children(name = "bindf"))]
+    file_binds: Vec<Bind>,
 
-    #[knus(property)]
-    pub(super) exec: Option<bool>,
+    #[knus(children(name = "bind"))]
+    dir_binds: Vec<Bind>,
+
+    #[knus(child, unwrap(argument))]
+    wd: String,
+
+    #[knus(children(name = "mount"))]
+    mounts: Vec<Mount>,
+
+    #[knus(children(name = "mask"), unwrap(argument))]
+    masks: Vec<String>,
+
+    #[knus(children(name = "file"))]
+    files: Vec<File>,
 }
 
-#[derive(knus::Decode, Clone, Debug)]
-pub(super) struct Mount {
+#[model]
+pub(crate) struct Bind {
     #[knus(argument)]
-    pub(super) name: String,
+    path: String,
+
+    #[knus(property)]
+    rw: Option<bool>,
+
+    #[knus(property)]
+    exec: Option<bool>,
+}
+
+#[model]
+pub(crate) struct Mount {
+    #[knus(argument)]
+    name: String,
 
     #[knus(argument)]
-    pub(super) path: String,
+    path: String,
 
     #[knus(property(name = "type"))]
-    pub(super) ty: String,
+    ty: String,
 
     #[knus(property)]
-    pub(super) opts: String,
+    opts: String,
 }
 
-#[derive(knus::Decode, Clone, Debug)]
-pub(super) struct File {
+#[model]
+pub(crate) struct File {
     #[knus(argument)]
-    pub(super) path: String,
+    path: String,
 
     #[knus(argument)]
-    pub(super) buf: String,
+    buf: String,
 
     #[knus(property)]
-    pub(super) perm: u16,
+    perm: u16,
 }
 
-#[derive(knus::Decode, Clone, Debug)]
-pub(super) struct Env {
+#[model]
+pub(crate) struct Env {
     #[knus(argument)]
-    pub(super) key: String,
+    key: String,
 
     #[knus(argument)]
-    pub(super) value: String,
+    value: String,
 }
 
 impl Bind {

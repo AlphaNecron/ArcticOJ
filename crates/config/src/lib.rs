@@ -1,4 +1,4 @@
-pub use knus::{Decode as Object, DecodeScalar as Scalar};
+pub use config_proc_macro::model;
 
 use miette::{IntoDiagnostic, WrapErr};
 

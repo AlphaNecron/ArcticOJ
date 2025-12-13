@@ -1,12 +1,13 @@
 [package]
 name = "cryo"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
 [dependencies]
-ipc-channel.workspace = true
-clone3 = { features = ["linux_5-7"], version = "0.2.3" }
-rustix = { workspace = true, features = ["runtime", "thread", "fs", "system", "process", "pipe", "mount"] }
+rustix = {workspace = true, features = ["runtime", "net", "process", "stdio", "event"]}
 serde.workspace = true
-rmp.workspace = true
-rmp-serde.workspace = true
+postcard = { features = ["experimental-derive", "alloc"], version = "1.1.3" }

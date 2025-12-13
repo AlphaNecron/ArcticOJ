@@ -5,9 +5,6 @@ mod go;
 mod prelude;
 mod python;
 
-use crate::executor::error::SelfTestErr;
-use prelude::*;
-
 // executor-specific stuff
 // #[async_trait::async_trait]
 // pub(crate) trait _Executor: 'static + Send + Sync {

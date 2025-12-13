@@ -6,7 +6,7 @@ use pasetors::keys::{AsymmetricKeyPair, Generate};
 use pasetors::public;
 use pasetors::version4::V4;
 
-const CUID: CuidConstructor = CuidConstructor::new().with_length(32);
+static CUID: CuidConstructor = CuidConstructor::new().with_length(32);
 
 #[async_trait::async_trait]
 impl ActiveModelBehavior for user::ActiveModel {

@@ -1,7 +1,3 @@
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::token::Enum;
-use syn::{Ident, LitStr, Path, Token};
 //
 // enum ExecutorType {
 //     Compiled,
