@@ -11,7 +11,7 @@ use rustix::stdio::{dup2_stderr, dup2_stdin, dup2_stdout, take_stdin};
 use rustix::thread::LinkNameSpaceType::Mount;
 use rustix::thread::{Gid, Pid, Uid, set_no_new_privs, set_thread_gid, set_thread_uid};
 use std::env;
-use std::env::args;
+use std::env::{args, args_os};
 use std::ffi::CString;
 use std::fs::write;
 use std::io::{Error, IoSliceMut};
@@ -114,18 +114,15 @@ fn main() -> std::io::Result<()> {
     send(&sock, &[0], SendFlags::empty())?;
 
     // why not env? cuz im too lazy to mutate container conf :c
-    let wd = args().nth(1).unwrap();
+    let wd = args().next().unwrap();
 
     loop {
-        // eprintln!("loop entered");
         let mut buf: [u8; 0] = [];
         let (_, sz) = recv(&sock, &mut buf, RecvFlags::PEEK | RecvFlags::TRUNC)?;
 
         if sz == 0 {
             break;
         }
-
-        // dbg!(sz);
 
         let mut buf = vec![0; sz];
         // - compile

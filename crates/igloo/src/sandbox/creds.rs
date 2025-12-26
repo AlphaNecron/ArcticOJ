@@ -1,19 +1,20 @@
 use crate::prelude::*;
+use rustix::process::{getgid, getuid};
 use std::fs::write;
 
 // mask user & group w an arbitrary one
 #[inline]
-pub(super) fn mask(cuid: u32, cgid: u32, uid: u32, gid: u32) -> std::io::Result<()> {
-    debug!("masking uid/gid to {}:{}", uid, gid);
+pub(super) fn mask(pid: u32, uid: u32, gid: u32) -> std::io::Result<()> {
+    let (cuid, cgid) = (getuid(), getgid());
 
     write(
-        "/proc/self/uid_map",
-        format!("0 {0} 1\n{1} {1} 1", cuid, uid),
+        format!("/proc/{}/uid_map", pid),
+        format!("0 {0} 1\n{1} {1} 1", cuid.as_raw(), uid),
     )?;
-    write("/proc/self/setgroups", "deny")?;
+    write(format!("/proc/{}/setgroups", pid), "deny")?;
     write(
-        "/proc/self/gid_map",
-        format!("0 {0} 1\n{1} {1} 1", cgid, gid),
+        format!("/proc/{}/gid_map", pid),
+        format!("0 {0} 1\n{1} {1} 1", cgid.as_raw(), gid),
     )?;
 
     Ok(())

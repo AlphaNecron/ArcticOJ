@@ -83,23 +83,20 @@ impl Container {
 
         let mfd = &*super::CRYO_MFD;
 
-        let (cuid, cgid) = (getuid(), getgid());
-
         match c3::clone3(&mut args)? {
             c3::Fork::Child => {
                 drop(s0);
 
                 let e = {
-                    super::creds::mask(cuid.as_raw(), cgid.as_raw(), cryo::UID, cryo::GID)?;
-
                     system::sethostname(id.as_bytes())?;
                     system::setdomainname(conf.domain_name.as_bytes())?;
 
                     super::fs::isolate(&conf.fs, root)?;
 
+                    let args = [CString::new(conf.fs.wd.as_str())?, CString::new(id)?];
+
                     // vec for scalability later :c
-                    let argv: Vec<*const u8> =
-                        cstrv!([CString::new(conf.fs.wd.as_str())?, CString::new(id)?]);
+                    let argv: Vec<*const u8> = cstrv!(args);
 
                     let envp: Vec<*const u8> = cstrv!(cenv);
 
@@ -122,6 +119,7 @@ impl Container {
             }
             c3::Fork::Parent(pid) => {
                 drop(s1);
+                super::creds::mask(pid, cryo::UID, cryo::GID)?;
                 debug!(%pid, "proc spawned");
             }
         }

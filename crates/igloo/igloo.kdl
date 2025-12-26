@@ -36,12 +36,13 @@ sandbox {
         //    mask "/usr/lib/wsl/drivers"
         //    mask "/usr/lib/wsl/lib"
 
-        file "/etc/passwd" perm=0o644 #"igloo:x:65534:65534:Arctic Online Judge:/w:/sbin/nologin\nroot:x:0:0::/:/sbin/nologin"
-        file "/etc/group" perm=0o644 #"igloo:x:65534:igloo\nroot:x:0:root"
+        file "/etc/passwd" perm=0o644 r"igloo:x:65534:65534:Arctic Online Judge:/w:/sbin/nologin\nroot:x:0:0::/:/sbin/nologin"
+        file "/etc/group" perm=0o644 r"igloo:x:65534:igloo\nroot:x:0:root"
 
         wd "/w"
     }
 
     env "PATH" "/usr/local/bin:/usr/bin:/bin"
+    env "RUST_BACKTRACE" "full"
     env "USER" "igloo"
 }
