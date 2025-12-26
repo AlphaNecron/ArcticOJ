@@ -6,11 +6,11 @@ use syn::{Data, DeriveInput, Fields, parse_macro_input};
 pub fn model(_args: TokenStream, input: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
 
-    if let Data::Struct(ref mut ds) = input.data {
-        if let Fields::Named(ref mut fields) = ds.fields {
-            for f in &mut fields.named {
-                f.vis = input.vis.clone();
-            }
+    if let Data::Struct(ref mut ds) = input.data
+        && let Fields::Named(ref mut fields) = ds.fields
+    {
+        for f in &mut fields.named {
+            f.vis = input.vis.clone();
         }
     }
 
@@ -21,7 +21,7 @@ pub fn model(_args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(quote! {
-        #[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
+        #[derive(serde::Serialize, serde::Deserialize, Debug)]
         #derive
         #input
     })

@@ -1,8 +1,10 @@
 use super::cg::CG;
-use super::isolate;
 use crate::prelude::*;
-use cryo::{CompileArgs, Req};
-use rustix::process::{Pid, WaitId, WaitIdOptions, WaitOptions, wait, waitid, waitpid};
+use cryo::Req;
+use rustix::process::{
+    Pid, WaitId, WaitIdOptions, WaitOptions, getgid, getuid, wait, waitid, waitpid,
+};
+use rustix::runtime::exit_group;
 use rustix::stdio::{dup2_stdin, dup2_stdout};
 use rustix::{
     fs::{AtFlags, mkdir},
@@ -12,7 +14,7 @@ use rustix::{
 use std::env::temp_dir;
 use std::ffi::{CStr, CString, c_char};
 use std::fs::remove_dir_all;
-use std::os::fd::{AsFd, FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -21,11 +23,11 @@ enum ExecErr {
 }
 
 pub struct Container {
-    // opts: Options,
     id: String,
     root: PathBuf,
     ipc: super::ipc::Conn,
     pid: OwnedFd,
+    cpu: String,
 }
 
 macro_rules! cstrv {
@@ -37,14 +39,11 @@ macro_rules! cstrv {
 }
 
 impl Container {
-    // TODO: impl seccomp
-    // TODO: impl landlock
     // TODO: reap zomb procs
-    pub fn new(id: impl Into<String>, root: impl Into<String>) -> std::io::Result<Self> {
+    pub fn new(id: String, root: String, cpu: String) -> std::io::Result<Self> {
         use rustix::net::{AddressFamily, SocketFlags, SocketType, socketpair};
 
-        let id = id.into();
-        let root = PathBuf::from(root.into());
+        let root = PathBuf::from(root);
 
         let conf = &crate::config::CONFIG.sandbox;
 
@@ -52,8 +51,7 @@ impl Container {
             .env_vars
             .iter()
             .map(|e| CString::new(format!("{}={}", e.key, e.value)))
-            .collect::<Result<Vec<CString>, _>>()
-            .unwrap_or(vec![]);
+            .collect::<Result<Vec<_>, _>>()?;
 
         // write from s0 -> read from s1 and vice versa
         // s0 for par, s1 for child
@@ -64,7 +62,7 @@ impl Container {
             None,
         )?;
 
-        use super::clone3 as c3;
+        use cryo::clone3 as c3;
 
         let mut pidfd: i32 = -1;
 
@@ -84,40 +82,50 @@ impl Container {
         };
 
         let mfd = &*super::CRYO_MFD;
-        match unsafe { c3::clone3(&mut args) } {
-            0 => {
+
+        let (cuid, cgid) = (getuid(), getgid());
+
+        match c3::clone3(&mut args)? {
+            c3::Fork::Child => {
                 drop(s0);
-                isolate::mask_ug()?;
 
-                system::sethostname(id.as_bytes())?;
-                system::setdomainname(conf.domain_name.as_bytes())?;
+                let e = {
+                    super::creds::mask(cuid.as_raw(), cgid.as_raw(), cryo::UID, cryo::GID)?;
 
-                super::mount::isolate(&conf.fs, root)?;
+                    system::sethostname(id.as_bytes())?;
+                    system::setdomainname(conf.domain_name.as_bytes())?;
 
-                let argvp: Vec<*const u8> = cstrv!(vec![CString::new(id)?]);
+                    super::fs::isolate(&conf.fs, root)?;
 
-                let envp: Vec<*const u8> = cstrv!(cenv);
+                    // vec for scalability later :c
+                    let argv: Vec<*const u8> =
+                        cstrv!([CString::new(conf.fs.wd.as_str())?, CString::new(id)?]);
 
-                // might do some shenanigans with stderr later :p
-                dup2_stdin(s1)?;
+                    let envp: Vec<*const u8> = cstrv!(cenv);
 
-                let e = unsafe {
-                    runtime::execveat(mfd, c"", argvp.as_ptr(), envp.as_ptr(), AtFlags::EMPTY_PATH)
+                    // might do some shenanigans with stderr later :p
+                    dup2_stdin(s1)?;
+
+                    unsafe {
+                        runtime::execveat(
+                            mfd,
+                            c"",
+                            argv.as_ptr(),
+                            envp.as_ptr(),
+                            AtFlags::EMPTY_PATH,
+                        )
+                    }
                 };
-                // debug!(e = ? e, "err calling execve");
+                debug!(?e, "err spawning zygote");
 
-                runtime::exit_group(1);
+                exit_group(1);
             }
-            pid if pid > 0 => {
+            c3::Fork::Parent(pid) => {
                 drop(s1);
-                // TODO: handle when pidfd = uninit
-                dbg!(&args);
                 debug!(%pid, "proc spawned");
             }
-            e => return Err(Errno::from_raw_os_error(-e as i32).into()),
         }
         // TODO: handle when pidfd = uninit
-        dbg!(pidfd);
         let pidfd = unsafe { OwnedFd::from_raw_fd(pidfd) };
         let ipc = super::ipc::Conn::new(s0);
         ipc.wait()?;
@@ -125,27 +133,22 @@ impl Container {
             id,
             root,
             ipc,
+            cpu,
             pid: pidfd,
         })
     }
 
     pub fn wait(&self) {
-        // waitid(WaitId::PidFd(self.pid.as_fd()), WaitIdOptions::empty()).unwrap();
+        waitid(WaitId::PidFd(self.pid.as_fd()), WaitIdOptions::EXITED).unwrap();
     }
 
-    pub fn exec(&self) {
-        let cg = CG::new(&self.id, "5");
-        self.ipc
-            .send(
-                Req::Compile(CompileArgs {
-                    time_limit: Default::default(),
-                    // arbitrary vals to test ser/de
-                    mem_limit: 199,
-                    output_limit: 120,
-                }),
-                &[cg.fd().unwrap().as_fd()],
-            )
-            .expect("xd");
+    pub fn exec(&self, req: cryo::Req, fds: &[BorrowedFd]) -> std::io::Result<i32> {
+        let cg = CG::new(&self.id, &self.cpu);
+        // assuming len(fds) is ALWAYS 3
+        // TODO: change this to use vec if using more than 3 fds
+        let cg_fd = cg.fd()?;
+        let fds = [cg_fd.as_fd(), fds[0], fds[1]];
+        self.ipc.send(req, &fds)
     }
 }
 

@@ -4,13 +4,12 @@ use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::sync::LazyLock;
 
 mod cg;
-mod clone3;
 pub(crate) mod config;
 mod container;
+mod creds;
+mod fs;
 mod ipc;
-mod isolate;
 mod manager;
-mod mount;
 mod prelude;
 
 pub use manager::Manager;

@@ -1,27 +1,24 @@
 use crate::prelude::*;
 use rustix::path::Arg;
-use rustix::thread::Pid;
 use rustix::{fs, system};
 use std::ffi;
 use std::fs::{create_dir_all, exists, read_dir, remove_dir, write};
 
-const TARGET_KERN: (u8, u8) = (5u8, 19u8);
+const TARGET_KERN: (u8, u8) = (5, 19);
 const ROOT_SLICE: &str = "/sys/fs/cgroup/igloo.slice";
 const CTRLS: &str = "+memory +pids +cpu +cpuset +io";
 const CGV2_SUPER_MAGIC: ffi::c_long = 1667723888;
 
-enum CompatErr {}
-
 fn check() -> std::io::Result<()> {
     let u = system::uname();
 
-    let ver = u
+    let ver: Vec<u8> = u
         .release()
         .to_string_lossy()
         .split('.')
         .take(2)
         .map(|x| x.parse().unwrap())
-        .collect::<Vec<u8>>();
+        .collect();
 
     assert!((ver[0], ver[1]) >= TARGET_KERN, "expect kernel >= 5.19");
 
@@ -42,18 +39,14 @@ fn rec_destroy_cg() -> std::io::Result<()> {
     }
     debug!("cleaning up prev cg");
     for e in read_dir(ROOT_SLICE)? {
-        match e {
-            Ok(e) => {
-                if !e.metadata()?.is_dir() {
-                    continue;
-                }
-                let p = e.path();
-                let ps = &p.to_string_lossy();
-                w(ps, "cgroup.kill", "1").ok();
-                remove_dir(&p).ok();
-                debug!(path = ps.to_string(), "cleaning up cg")
-            }
-            _ => continue,
+        if let Ok(e) = e
+            && e.metadata()?.is_dir()
+        {
+            let p = e.path();
+            let ps = &p.to_string_lossy();
+            w(ps, "cgroup.kill", "1").ok();
+            remove_dir(&p).ok();
+            debug!(path = ps.to_string(), "cleaning up cg")
         }
     }
     Ok(())

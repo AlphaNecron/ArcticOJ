@@ -87,7 +87,7 @@ pub(super) fn isolate(fs: &super::config::FS, tmp: PathBuf) -> std::io::Result<(
         "/proc",
         "proc",
         MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC | MountFlags::RDONLY,
-        None,
+        c"hidepid=2",
     )?;
 
     for m in &fs.masks {

@@ -19,7 +19,7 @@ impl Manager {
         Self
     }
 
-    pub fn create_container(&self, id: String) -> std::io::Result<Container> {
+    pub fn create_container(&self, id: String, cpu: String) -> std::io::Result<Container> {
         let tmp = Path::new(&CONFIG.sandbox.fs.root).join(format!(
             "{}_{}",
             id,
@@ -27,7 +27,7 @@ impl Manager {
         ));
 
         mkdir(&tmp, 0o755.into()).expect("err creating tmpdir");
-        Container::new(id, tmp.to_string_lossy())
+        Container::new(id, tmp.to_string_lossy().into(), cpu)
     }
 }
 

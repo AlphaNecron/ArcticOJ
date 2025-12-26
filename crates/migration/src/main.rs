@@ -1,6 +1,7 @@
+use config::model;
 use sea_orm_migration::prelude::*;
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, config::Object)]
+#[model]
 pub struct Config {
     #[knus(child, unwrap(argument))]
     pub database_url: String,
